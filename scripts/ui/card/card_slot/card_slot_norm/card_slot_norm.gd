@@ -32,8 +32,8 @@ func set_backpack_key(key: String) -> void:
 ## 使用 [param game_para] 初始化槽位、候选点击信号和不可取消的预选卡。
 func init_card_slot_norm(game_para: ResourceLevelData) -> void:
 	card_slot_battle.init_card_slot_battle(game_para.max_choosed_card_num, game_para.start_sun)
-	# 候选容器按引用的完整选择键定位，模仿修饰决定点击处理方法。
-	for container: CardCandidateContainer in card_slot_candidate.candidate_containers.values():
+	# 候选容器覆盖重复卡片，逐个连接点击处理。
+	for container: CardCandidateContainer in card_slot_candidate.candidate_containers:
 		if container.card.card_reference.is_imitater:
 			container.card.signal_card_click.connect(_on_imitater_card_click)
 		else:
@@ -47,6 +47,9 @@ func _on_re_card_button_pressed() -> void:
 	# 上次选卡的引用只读，候选卡拥有自己的引用副本。
 	for reference: ResourceCardReference in Global.global_game_state.selected_cards:
 		if not AllCards.is_battle_card(reference):
+			continue
+		# 同一模板只能带一张，已恢复同类卡片时跳过后续重复引用。
+		if _has_template_selected(reference):
 			continue
 		# 根据完整选择键同时区分普通植物和模仿植物。
 		var container: CardCandidateContainer = card_slot_candidate.get_candidate(reference)
@@ -91,22 +94,41 @@ func init_pre_choosed_card(references: Array[ResourceCardReference]) -> void:
 			continue
 		card_slot_battle.curr_cards.append(card)
 		pre_choosed_card(card, card_slot_battle.cards_placeholder[card_slot_battle.curr_cards.size() - 1])
+		# 预选卡同样占用该模板，其余同类候选卡本局不可再选。
+		card_slot_candidate.set_template_blocked(reference, true)
 		if reference.is_imitater:
 			card_slot_candidate.imitater_be_choosed()
 	card_disconnect_click_in_choose()
+
+## 返回 [param reference] 的同模板卡片是否已在出战卡槽中。[br]
+## 模板键忽略模仿修饰，因此普通卡与模仿卡视为同一种卡片。
+func _has_template_selected(reference: ResourceCardReference) -> bool:
+	if reference == null:
+		return false
+	var template_key := reference.get_template_key()
+	for card: Card in card_slot_battle.curr_cards:
+		if card.card_reference != null and card.card_reference.get_template_key() == template_key:
+			return true
+	return false
 
 ## 返回当前是否处于开局选卡或下一轮重选阶段。
 func _is_choosing() -> bool:
 	return Global.main_game.main_game_progress == MainGameManager.E_MainGameProgress.CHOOSE_CARD \
 		or Global.main_game.main_game_progress == MainGameManager.E_MainGameProgress.RE_CHOOSE_CARD
 
-## [param card] 的正常选择信号；只接纳具有出战能力的卡片。
+## [param card] 的正常选择信号；只接纳具有出战能力的卡片。[br]
+## 同一模板只能选一张：选中后禁用其余同类候选卡，取消后统一恢复。
 func _on_card_click(card: Card) -> void:
 	if not _is_choosing() or not AllCards.is_battle_card(card.card_reference):
+		return
+	# 同类卡片已被选中时拒绝再次选择，避免同一植物重复出战。
+	if card.is_selection_blocked:
 		return
 	SoundManager.play_other_SFX("tap")
 	if card.is_choosed_pre_card:
 		card.is_choosed_pre_card = false
+		# 取消后恢复所有同类候选卡，玩家可以改选另一张。
+		card_slot_candidate.set_template_blocked(card.card_reference, false)
 		# 移除后从原位置开始将后续卡片向前移动。
 		var card_index: int = card_slot_battle.curr_cards.find(card)
 		card_slot_battle.curr_cards.erase(card)
@@ -116,18 +138,28 @@ func _on_card_click(card: Card) -> void:
 		move_card_to(card, card.card_candidate_container)
 	elif card_slot_battle.curr_cards.size() >= card_slot_battle.cards_placeholder.size():
 		SoundManager.play_other_SFX("buzzer")
+	elif _has_template_selected(card.card_reference):
+		SoundManager.play_other_SFX("buzzer")
 	else:
 		card.is_choosed_pre_card = true
 		card_slot_battle.curr_cards.append(card)
+		# 其余同类卡片本局不可再选，直到取消这张卡。
+		card_slot_candidate.set_template_blocked(card.card_reference, true)
 		move_card_to(card, card_slot_battle.cards_placeholder[card_slot_battle.curr_cards.size() - 1])
 
-## [param card] 的模仿植物选择信号；独立入口本身不作为出战卡。
+## [param card] 的模仿植物选择信号；独立入口本身不作为出战卡。[br]
+## 模仿卡与普通卡共享植物模板，因此同样受同类互斥限制。
 func _on_imitater_card_click(card: Card) -> void:
 	if not _is_choosing() or not AllCards.is_battle_card(card.card_reference):
+		return
+	# 同类卡片已被选中时拒绝再次选择。
+	if card.is_selection_blocked:
 		return
 	SoundManager.play_other_SFX("tap")
 	if card.is_choosed_pre_card:
 		card.is_choosed_pre_card = false
+		# 取消后恢复所有同类候选卡。
+		card_slot_candidate.set_template_blocked(card.card_reference, false)
 		# 原索引用于重新排列后续卡片。
 		var card_index: int = card_slot_battle.curr_cards.find(card)
 		card_slot_battle.curr_cards.erase(card)
@@ -140,9 +172,14 @@ func _on_imitater_card_click(card: Card) -> void:
 	elif card_slot_battle.curr_cards.size() >= card_slot_battle.cards_placeholder.size():
 		SoundManager.play_other_SFX("buzzer")
 		card_slot_candidate.imitater_card_slot_disappear()
+	elif _has_template_selected(card.card_reference):
+		SoundManager.play_other_SFX("buzzer")
+		card_slot_candidate.imitater_card_slot_disappear()
 	elif not card_slot_candidate.card_imitater.is_be_choosed_imitater:
 		card.is_choosed_pre_card = true
 		card_slot_battle.curr_cards.append(card)
+		# 其余同类卡片本局不可再选，直到取消这张卡。
+		card_slot_candidate.set_template_blocked(card.card_reference, true)
 		card.reparent(card_slot_candidate.card_imitater, false)
 		move_card_to(card, card_slot_battle.cards_placeholder[card_slot_battle.curr_cards.size() - 1])
 		card_slot_candidate.imitater_be_choosed()

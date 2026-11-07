@@ -33,6 +33,8 @@ var tween_blink: Tween
 var is_choosed_pre_card: bool = false
 ## 对应的候选占位容器，选中后用于恢复备选显示。
 var card_candidate_container: CardCandidateContainer
+## 选卡阶段是否因同模板卡片已被选择而临时禁用；禁用时忽略点击并变暗。
+var is_selection_blocked: bool = false
 ## 模仿卡共用的着色材质，每个展示实例使用独立副本。
 const IMITATER = preload("res://shader_material/imitater.tres")
 ## 选卡或图鉴点击通知，始终携带实际被点击的卡牌。
@@ -231,3 +233,31 @@ func mouse_filter_start() -> void:
 ## 停止卡牌接收鼠标输入，用于手持临时卡期间屏蔽其他临时卡。
 func mouse_filter_stop() -> void:
 	button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+## 设置选卡阶段的临时禁用状态：同模板卡片只能选一张，其余候选卡变暗且不可点击。[br]
+## 已选中的卡片不参与禁用；取消选择后由调用方统一恢复。
+func set_selection_blocked(blocked: bool) -> void:
+	# 已进入出战卡槽的卡片不参与禁用，否则会连取消选择都点不动。
+	if is_choosed_pre_card:
+		return
+	if is_selection_blocked == blocked:
+		return
+	is_selection_blocked = blocked
+	if blocked:
+		mouse_filter_stop()
+		# 变暗提示：本局该植物已经带了一张，其余副本不可再选。
+		_set_candidate_dimmed(true)
+	else:
+		mouse_filter_start()
+		_set_candidate_dimmed(false)
+
+
+## 按 [param dimmed] 调整候选占位或自身的亮度；容器存在时优先调整容器以保留背景预览。[br]
+func _set_candidate_dimmed(dimmed: bool) -> void:
+	# 禁用态的显示颜色；恢复时还原为白色。
+	var target_color: Color = Color(0.55, 0.55, 0.55, 1.0) if dimmed else Color.WHITE
+	if is_instance_valid(card_candidate_container):
+		card_candidate_container.modulate = target_color
+	else:
+		modulate = target_color
