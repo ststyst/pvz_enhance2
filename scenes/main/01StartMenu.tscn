@@ -76,6 +76,7 @@
 [ext_resource type="PackedScene" uid="uid://5v0fdtao52jl" path="res://scenes/main/control_canvas_layer.tscn" id="62_e0j7q"]
 [ext_resource type="Script" uid="uid://byfoq607wecwj" path="res://scripts/start_menu/wood_sign.gd" id="63_gis02"]
 [ext_resource type="BitMap" uid="uid://bhg7gejfpw036" path="res://assets/image/ui/ui_main_game_menu/btn_dialog_back_2_mask.png" id="63_xxpiq"]
+[ext_resource type="Script" uid="uid://cet5vjn4t8oi7" path="res://scripts/ui/start_menu/start_menu_enhance_button.gd" id="67_ddcpa"]
 [ext_resource type="Script" uid="uid://61qhr6plpibr" path="res://scripts/start_menu/user.gd" id="75_altii"]
 [ext_resource type="Texture2D" uid="uid://dsobv4ixy06yp" path="res://assets/image/ui/ui_main_game_menu/UI_BG/combined_result.png" id="75_ito2j"]
 [ext_resource type="Texture2D" uid="uid://bcq3pj58odr4i" path="res://assets/image/ui/ui_main_game_menu/UI_BG_original/dialog_header.png" id="76_nu6d8"]
@@ -2143,6 +2144,39 @@ rotation = 0.30697444
 text = "v 1.2.0"
 label_settings = SubResource("LabelSettings_x7dp7")
 
+[node name="CustomButton2" type="TextureButton" parent="BG_Right" unique_id=567574065]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -440.0
+offset_top = 427.0
+offset_right = -360.0
+offset_bottom = 507.0
+grow_horizontal = 2
+mouse_default_cursor_shape = 2
+texture_normal = ExtResource("83_tf8pn")
+texture_click_mask = ExtResource("84_mpctx")
+stretch_mode = 5
+script = ExtResource("67_ddcpa")
+
+[node name="default" type="TextureRect" parent="BG_Right/CustomButton2" unique_id=1898751458]
+layout_mode = 1
+offset_right = 80.0
+offset_bottom = 80.0
+texture = ExtResource("83_tf8pn")
+stretch_mode = 2
+
+[node name="mouse" type="TextureRect" parent="BG_Right/CustomButton2" unique_id=664476155]
+visible = false
+layout_mode = 1
+offset_left = -14.0
+offset_top = -21.0
+offset_right = 94.0
+offset_bottom = 96.0
+texture = ExtResource("84_x7dp7")
+stretch_mode = 2
+
 [node name="WoodSign" type="Control" parent="." unique_id=1519060501]
 anchors_preset = 0
 offset_left = 47.0
@@ -2363,6 +2397,7 @@ self_modulate = Color(1, 1, 1, 1)
 show_behind_parent = false
 top_level = false
 clip_children = 0
+oversampling_with_scale = 0
 light_mask = 1
 visibility_layer = 1
 z_index = 0
@@ -2372,9 +2407,10 @@ texture_filter = 0
 texture_repeat = 0
 material = null
 use_parent_material = false
-clip_contents = false
 custom_minimum_size = Vector2(0, 0)
-layout_direction = 0
+custom_maximum_size = Vector2(-1, -1)
+propagate_maximum_size = false
+clip_contents = false
 layout_mode = 0
 anchors_preset = 0
 anchor_left = 0.0
@@ -2394,7 +2430,17 @@ pivot_offset_ratio = Vector2(0, 0)
 size_flags_horizontal = 1
 size_flags_vertical = 1
 size_flags_stretch_ratio = 1.0
+offset_transform_enabled = false
+offset_transform_position = Vector2(0, 0)
+offset_transform_position_ratio = Vector2(0, 0)
+offset_transform_scale = Vector2(1, 1)
+offset_transform_rotation = 0.0
+offset_transform_pivot = Vector2(0, 0)
+offset_transform_pivot_ratio = Vector2(0.5, 0.5)
+offset_transform_visual_only = true
 localize_numeral_system = true
+layout_direction = 0
+translation_context = &""
 tooltip_text = ""
 tooltip_auto_translate_mode = 0
 focus_neighbor_left = NodePath("")
@@ -3043,6 +3089,8 @@ offset_bottom = -178.0
 [connection signal="mouse_entered" from="BG_Right/CustomButton" to="BG_Right/CustomButton" method="_on_mouse_entered"]
 [connection signal="mouse_exited" from="BG_Right/CustomButton" to="BG_Right/CustomButton" method="_on_mouse_exited"]
 [connection signal="pressed" from="BG_Right/CustomButton" to="." method="_on_custom_button_pressed"]
+[connection signal="mouse_entered" from="BG_Right/CustomButton2" to="BG_Right/CustomButton2" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="BG_Right/CustomButton2" to="BG_Right/CustomButton2" method="_on_mouse_exited"]
 [connection signal="pressed" from="WoodSign/ButtonUserUpdate" to="." method="_on_button_update_user_pressed"]
 [connection signal="toggled" from="StartMenuOptionDialog/Option/FullScreen/CheckButton" to="." method="_on_full_screen_button_toggled"]
 [connection signal="pressed" from="StartMenuOptionDialog/Return" to="StartMenuOptionDialog" method="return_button_pressed"]

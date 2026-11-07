@@ -1,0 +1,35 @@
+[gd_scene format=3 uid="uid://705i5swb65na"]
+
+[ext_resource type="Script" path="res://scripts/ui/enhance/enhance_scene.gd" id="1_root"]
+
+[node name="Enhance" type="Node2D" unique_id=1584009847]
+script = ExtResource("1_root")
+
+[node name="EnhanceMainInterface" type="Node2D" parent="." unique_id=1859124274]
+
+[node name="MainCard" type="Node2D" parent="EnhanceMainInterface" unique_id=460774558]
+position = Vector2(149, 271)
+
+[node name="ConsumedCard" type="Node2D" parent="EnhanceMainInterface" unique_id=1600053355]
+position = Vector2(43, 264)
+
+[node name="ConsumedCard2" type="Node2D" parent="EnhanceMainInterface" unique_id=645236895]
+position = Vector2(150, 176)
+
+[node name="ConsumedCard3" type="Node2D" parent="EnhanceMainInterface" unique_id=691809528]
+position = Vector2(240, 271)
+
+[node name="ConfirmButton" type="Button" parent="EnhanceMainInterface" unique_id=159267940]
+offset_left = 82.0
+offset_top = 371.0
+offset_right = 221.0
+offset_bottom = 441.0
+
+[node name="Backpack" type="Node2D" parent="." unique_id=334945089]
+position = Vector2(502, 9)
+
+[node name="LeaveButton" type="Button" parent="." unique_id=1866240313]
+offset_left = 83.0
+offset_top = 538.0
+offset_right = 222.0
+offset_bottom = 590.0

@@ -39,6 +39,13 @@ var backpacks: Dictionary = {}
 var curr_backpack_key: String = DEFAULT_BACKPACK_KEY
 ## 下一个可分配的卡片唯一 id；随存档持久化，保证删除时能精确定位到某一颗星级的卡。
 var next_card_uid: int = 1
+## 强化道具默认数量；读取存档时按该表补全缺失字段。
+const DEFAULT_ENHANCE_ITEMS: Dictionary = {
+	"protect_talisman": 0,
+	"insurance": 0,
+}
+## 强化道具持有数量：道具 id → 数量（保级符 / 强化保险金）。
+var enhance_items: Dictionary = DEFAULT_ENHANCE_ITEMS.duplicate(true)
 
 ## 当前可用僵王角色，普通选卡按此列表筛选；默认包含博士，不受关卡自动出场配置影响。
 var curr_zombie_boss: Array[CharacterRegistry.ZombieBossType] = [

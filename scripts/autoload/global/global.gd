@@ -15,6 +15,8 @@ extends Node
 @onready var save_service: SaveService = %SaveService
 ## 玩家背包服务（多背包、卡片增减、选卡读取的背包键）
 @onready var backpack_service: BackpackService = %BackpackService
+## 卡片强化服务（入口 enter_enhance_system 需要背包键）
+@onready var card_enhance_service: CardEnhanceService = %CardEnhanceService
 ## 配置服务（用户音量、控制台）
 @onready var config_service: ConfigService = %ConfigService
 ## 全局游戏状态（金币、花园数据、关卡数据、当前植物、当前僵尸）

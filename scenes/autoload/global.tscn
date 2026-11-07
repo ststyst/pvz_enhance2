@@ -11,6 +11,7 @@
 [ext_resource type="Script" uid="uid://bfp02l7lpb1hc" path="res://scripts/autoload/global/global_game_state.gd" id="8_t0h6q"]
 [ext_resource type="Script" uid="uid://bylmo3te1r3qj" path="res://scripts/autoload/global/global_read_data.gd" id="10_vrmlj"]
 [ext_resource type="Script" uid="uid://rdo5o1hicvpr" path="res://scripts/autoload/global/backpack_service.gd" id="11_o7hgu"]
+[ext_resource type="Script" uid="uid://caw6ibhigjuol" path="res://scripts/enhance/card_enhance_service.gd" id="12_4v4h2"]
 
 [node name="Global" type="Node" unique_id=1477215444]
 script = ExtResource("1_3e7rl")
@@ -56,3 +57,7 @@ script = ExtResource("10_vrmlj")
 [node name="BackpackService" type="Node" parent="." unique_id=1709363380]
 unique_name_in_owner = true
 script = ExtResource("11_o7hgu")
+
+[node name="CardEnhanceService" type="Node" parent="." unique_id=37809916]
+unique_name_in_owner = true
+script = ExtResource("12_4v4h2")

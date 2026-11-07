@@ -7,7 +7,7 @@ class_name SaveService
 ## 与 Global 根下的 GlobalGameState 同级，用 % 引用，避免依赖 get_parent() 类型
 @onready var global_game_state: GlobalGameState = %GlobalGameState
 
-const SaveGameVersion := "20251208"
+const SaveGameVersion := "20251209"
 const SaveGameFileName := "GlobalSaveGame.json"
 ## 主游戏关卡等存档子目录名（单点定义）。其它脚本请用 `SaveService.MAIN_GAME_SAVE_DIR_NAME` 或 `Global.save_service.MAIN_GAME_SAVE_DIR_NAME`，勿复制字符串。
 const MAIN_GAME_SAVE_DIR_NAME := "main_game_saves_data"
@@ -68,6 +68,7 @@ func save_now() -> void:
 		"backpacks": _serialize_backpacks(),
 		"curr_backpack_key": global_game_state.curr_backpack_key,
 		"next_card_uid": global_game_state.next_card_uid,
+		"enhance_items": global_game_state.enhance_items,
 		"curr_plant": global_game_state.curr_plant,
 		"curr_zombie": global_game_state.curr_zombie,
 	}
@@ -106,6 +107,12 @@ func load_global_game_data() -> void:
 	state.next_card_uid = max(1, int(data.get("next_card_uid", 1)))
 	# 旧存档的卡片没有唯一 id，统一补发后再允许按 id 删除。
 	_ensure_backpack_card_uids(state)
+	# 强化道具为新增字段；缺失的键补 0，负数收敛到 0。
+	var loaded_enhance_items: Variant = data.get("enhance_items", {})
+	state.enhance_items = GlobalGameState.DEFAULT_ENHANCE_ITEMS.duplicate(true)
+	if loaded_enhance_items is Dictionary:
+		for item_id: String in state.enhance_items.keys():
+			state.enhance_items[item_id] = maxi(0, int((loaded_enhance_items as Dictionary).get(item_id, 0)))
 
 	### 从存档读取当前植物和僵尸
 	#var loaded_curr_plant_raw: Array = data.get("curr_plant", state.curr_plant)

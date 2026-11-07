@@ -387,6 +387,18 @@ func _assign_missing_card_uids(state: GlobalGameState) -> void:
 	state.next_card_uid = next_uid
 
 
+## 在 [param backpack_key] 的内容被外部直接修改后调用，广播变化并请求写档。[br]
+## 用于强化等直接改写卡片字段的流程，避免绕过信号与保存。
+func mark_backpack_changed(backpack_key: String = "") -> void:
+	var state := _state()
+	if state == null:
+		return
+	var key := resolve_existing_backpack_key(backpack_key, state)
+	if key.is_empty():
+		return
+	_notify_backpack_changed(key)
+
+
 ## 广播背包变化并请求写回存档；同一帧内的多次变化会合并为一次落盘。
 func _notify_backpack_changed(backpack_key: String) -> void:
 	backpack_changed.emit(backpack_key)
