@@ -37,6 +37,8 @@ const DEFAULT_BACKPACK_KEY: String = "default"
 var backpacks: Dictionary = {}
 ## 选卡默认读取的背包键；对应背包不存在时由 BackpackService 回退到有效背包。
 var curr_backpack_key: String = DEFAULT_BACKPACK_KEY
+## 下一个可分配的卡片唯一 id；随存档持久化，保证删除时能精确定位到某一颗星级的卡。
+var next_card_uid: int = 1
 
 ## 当前可用僵王角色，普通选卡按此列表筛选；默认包含博士，不受关卡自动出场配置影响。
 var curr_zombie_boss: Array[CharacterRegistry.ZombieBossType] = [

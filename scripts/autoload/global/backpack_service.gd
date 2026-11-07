@@ -49,6 +49,12 @@ static func seed_default_backpack(state: GlobalGameState) -> bool:
 	if default_cards.is_empty():
 		for plant_type: CharacterRegistry.PlantType in state.curr_plant:
 			default_cards.append(ResourceCardReference.create(ResourceCardReference.CardType.Plant, plant_type))
+	# 补建出来的卡片同样需要唯一 id，删除功能才能精确定位。
+	var next_uid: int = max(1, state.next_card_uid)
+	for card: ResourceCardReference in default_cards:
+		card.card_uid = next_uid
+		next_uid += 1
+	state.next_card_uid = next_uid
 	state.backpacks[DEFAULT_BACKPACK_KEY] = default_cards
 	if state.curr_backpack_key.is_empty() or not state.backpacks.has(state.curr_backpack_key):
 		state.curr_backpack_key = DEFAULT_BACKPACK_KEY
@@ -135,8 +141,10 @@ func add_backpack(backpack_key: String, copy_from: String = "") -> bool:
 	var cards: Array[ResourceCardReference] = []
 	if not copy_from.is_empty():
 		for reference: ResourceCardReference in get_backpack(copy_from):
+			# 复制背包时每张卡都视为新实体，副本的 id 由下面统一重新分配。
 			cards.append(reference.copy_reference())
 	state.backpacks[key] = cards
+	_assign_missing_card_uids(state)
 	_notify_backpack_changed(key)
 	return true
 
@@ -260,10 +268,11 @@ func add_card(backpack_key: String, reference: ResourceCardReference, count: int
 	if key.is_empty():
 		return 0
 	var cards := get_backpack(key)
-	# 每张卡片都是独立引用，避免共享可写属性。
+	# 每张卡片都是独立引用，避免共享可写属性；唯一 id 稍后统一分配。
 	for _index: int in count:
 		cards.append(reference.copy_reference())
 	state.backpacks[key] = cards
+	_assign_missing_card_uids(state)
 	_notify_backpack_changed(key)
 	return count_card(key, reference)
 
@@ -298,16 +307,84 @@ func remove_all_cards(backpack_key: String, reference: ResourceCardReference) ->
 	return remove_card(backpack_key, reference, 2147483647)
 
 
-## 把植物卡片加入背包，返回加入后该植物的持有数量；[param plant_type] 取 [enum CharacterRegistry.PlantType]。
-func add_plant_card(backpack_key: String, plant_type: int, count: int = 1) -> int:
-	return add_card(backpack_key, ResourceCardReference.create(ResourceCardReference.CardType.Plant, plant_type), count)
+## 把植物卡片加入背包，返回加入后该植物的持有数量；[param plant_type] 取 [enum CharacterRegistry.PlantType]。[br]
+## [param star_level] 是该卡片的星级（1~16），不同星级的同种植物互相独立。
+func add_plant_card(backpack_key: String, plant_type: int, count: int = 1, star_level: int = 1) -> int:
+	return add_card(
+		backpack_key,
+		ResourceCardReference.create(ResourceCardReference.CardType.Plant, plant_type, false, star_level),
+		count
+	)
 
 
-## 从背包移除植物卡片，返回实际移除数量；[param plant_type] 取 [enum CharacterRegistry.PlantType]。
+## 从背包移除植物卡片，返回实际移除数量。[br]
+## 该接口按模板删除，会移除任意星级的同种卡；需要精确删除某一张时请用 [method remove_card_by_uid]。
 func remove_plant_card(backpack_key: String, plant_type: int, count: int = 1) -> int:
 	return remove_card(backpack_key, ResourceCardReference.create(ResourceCardReference.CardType.Plant, plant_type), count)
 
+
+## 按唯一 id 删除背包内的一张卡片，返回是否删除成功。[br]
+## 星级与重复卡不影响定位：只会删除 id 匹配的那一张，避免误删不同星级的同种卡。
+func remove_card_by_uid(backpack_key: String, card_uid: int) -> bool:
+	var state := _state()
+	if state == null or card_uid <= 0:
+		return false
+	var key := resolve_existing_backpack_key(backpack_key, state)
+	if key.is_empty():
+		return false
+	var cards := get_backpack(key)
+	for index: int in range(cards.size() - 1, -1, -1):
+		if cards[index].card_uid == card_uid:
+			cards.remove_at(index)
+			state.backpacks[key] = cards
+			_notify_backpack_changed(key)
+			return true
+	return false
+
+
+## 按唯一 id 查找背包内的卡片，未找到返回 null。[br]
+## 返回的是背包内的同一引用对象，请勿直接修改其身份字段。
+func get_card_by_uid(backpack_key: String, card_uid: int) -> ResourceCardReference:
+	for card: ResourceCardReference in get_backpack(backpack_key):
+		if card.card_uid == card_uid:
+			return card
+	return null
+
+
+## 返回背包内全部卡片的唯一 id；顺序与背包内容一致。
+func get_card_uids(backpack_key: String = "") -> PackedInt32Array:
+	var uids := PackedInt32Array()
+	for card: ResourceCardReference in get_backpack(backpack_key):
+		uids.append(card.card_uid)
+	return uids
+
 #endregion
+
+
+## 为所有缺少唯一 id 的卡片补发 id，并推进 next_card_uid。[br]
+## 新增卡片先以 0 加入背包，再统一分配，保证同批次与已有卡片都不会拿到重复 id。
+func _assign_missing_card_uids(state: GlobalGameState) -> void:
+	# 已被占用的 id 集合，包含其它背包里的卡片。
+	var used_uids: Dictionary = {}
+	for backpack_key: String in state.backpacks.keys():
+		for card: Variant in state.backpacks[backpack_key]:
+			if card is ResourceCardReference and card.card_uid > 0:
+				used_uids[card.card_uid] = true
+	# 下一个可用 id 从存档计数器继续，至少为 1。
+	var next_uid: int = max(1, state.next_card_uid)
+	for backpack_key: String in state.backpacks.keys():
+		for card: Variant in state.backpacks[backpack_key]:
+			if not card is ResourceCardReference:
+				continue
+			if card.card_uid > 0:
+				continue
+			# 跳过已被占用的号段，避免手动改档后出现重复 id。
+			while used_uids.has(next_uid):
+				next_uid += 1
+			card.card_uid = next_uid
+			used_uids[next_uid] = true
+			next_uid += 1
+	state.next_card_uid = next_uid
 
 
 ## 广播背包变化并请求写回存档；同一帧内的多次变化会合并为一次落盘。

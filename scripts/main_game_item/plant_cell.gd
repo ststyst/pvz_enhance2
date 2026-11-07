@@ -150,16 +150,18 @@ func plant_be_flattened():
 
 #region 植物(僵尸)种植(死亡)
 ## 模仿者创建植物
-func imitater_create_plant(plant_type:CharacterRegistry.PlantType, is_plant_start_effect:=true):
+## [param star_level] 沿袭模仿者卡片自身的星级。
+func imitater_create_plant(plant_type:CharacterRegistry.PlantType, is_plant_start_effect:=true, star_level:=0):
 	await get_tree().process_frame
-	var plant = create_plant(plant_type, false, is_plant_start_effect, true)
+	var plant = create_plant(plant_type, false, is_plant_start_effect, true, false, star_level)
 	return plant
 ## 新植物种植
 ##[is_imitater:bool] 植物是否为模仿者
 ##[is_plant_start_effect:bool] 是否有种植特效
 ##[is_imitater_material:bool] 是否为模仿者材质
 ##[is_zombie_mode:bool] 是否为我是僵尸模式
-func create_plant(plant_type:CharacterRegistry.PlantType, is_imitater:=false, is_plant_start_effect:=true, is_imitater_material:=false, is_zombie_mode:=false) -> Plant000Base:
+##[star_level:int] 植物星级；来自局内卡片，没有卡槽的特殊模式为 0
+func create_plant(plant_type:CharacterRegistry.PlantType, is_imitater:=false, is_plant_start_effect:=true, is_imitater_material:=false, is_zombie_mode:=false, star_level:=0) -> Plant000Base:
 	var plant_condition:ResourcePlantCondition
 	var plant :Plant000Base
 	plant_condition = Global.character_registry.get_plant_info(plant_type, CharacterRegistry.PlantInfoAttribute.PlantConditionResource)
@@ -191,7 +193,8 @@ func create_plant(plant_type:CharacterRegistry.PlantType, is_imitater:=false, is
 		Plant000Base.E_PInitAttr.CharacterInitType:Character000Base.E_CharacterInitType.IsNorm,
 		Plant000Base.E_PInitAttr.PlantCell:self,
 		Plant000Base.E_PInitAttr.IsImitaterMaterial:is_imitater_material,
-		Plant000Base.E_PInitAttr.IsZombieMode:is_zombie_mode
+		Plant000Base.E_PInitAttr.IsZombieMode:is_zombie_mode,
+		Plant000Base.E_PInitAttr.StarLevel:star_level
 	}
 	plant.init_plant(plant_init_para)
 	if is_imitater:
@@ -683,7 +686,7 @@ func clear_data_plant_cell():
 ## 读档时创建植物
 func _load_game_data_create_plant(game_data_plant):
 	var plant:Plant000Base
-	plant = create_plant(game_data_plant["plant_type"], false, false, game_data_plant["is_imitater_material"])
+	plant = create_plant(game_data_plant["plant_type"], false, false, game_data_plant["is_imitater_material"], false, int(game_data_plant.get("star_level", 0)))
 	if plant != null:
 		plant.load_game_data_plant(game_data_plant)
 #endregion

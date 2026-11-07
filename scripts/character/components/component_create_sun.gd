@@ -22,6 +22,8 @@ class_name CreateSunComponent
 var create_interval :float
 ## 创建阳光时的发光颜色
 var create_sun_color: Color = Color(1, 1, 1)
+## 生产效率倍率；1 为正常，2 表示产出间隔减半，由植物属性 ProductionRate 写入。
+var production_rate: float = 1.0
 
 
 #region 我是僵尸模式
@@ -45,7 +47,7 @@ func _on_character_death():
 func _ready() -> void:
 	# 随机区间不包含速度；禁用或展示状态也先保存周期与倍率，供后续启用使用。
 	create_interval = randf_range(create_time_range_first.x, create_time_range_first.y)
-	create_sun_timer.base_wait_time = create_interval
+	create_sun_timer.base_wait_time = create_interval / production_rate
 	owner_update_speed(GlobalUtils.get_dic_product(owner.influence_speed_factors))
 	if not get_tree().current_scene is MainGameManager:
 		return
@@ -80,7 +82,23 @@ func owner_update_speed(speed_product:float):
 ## 生产阳光后、改变阳光生产时间，重新启动计时器
 func change_production_interval():
 	create_interval = randf_range(create_time_range_other.x, create_time_range_other.y)
-	create_sun_timer.start_scaled(create_interval)
+	# 生产效率越高，间隔越短：间隔 = 基础间隔 / 倍率。
+	create_sun_timer.start_scaled(create_interval / production_rate)
+
+
+## 应用生产效率倍率，返回是否改变了实际周期。[br]
+## [param rate] 为 1 表示正常速度，2 表示间隔减半；非正数按 0.01 处理避免除零。[br]
+## 周期变化时立即按新间隔重新计时，让加成立刻生效。
+func apply_production_rate(rate: float) -> bool:
+	# 归一化后的倍率，避免 0 或负数导致间隔无限大。
+	var new_rate: float = maxf(rate, 0.01)
+	if is_equal_approx(new_rate, production_rate) and not create_sun_timer.is_stopped():
+		return false
+	production_rate = new_rate
+	create_sun_timer.base_wait_time = create_interval / production_rate
+	if not create_sun_timer.is_stopped():
+		create_sun_timer.start_scaled(create_interval / production_rate)
+	return true
 
 
 ## 创建阳光

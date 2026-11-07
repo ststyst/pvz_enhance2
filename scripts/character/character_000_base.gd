@@ -44,6 +44,9 @@ var all_timer:Dictionary[E_TimerType, Timer] = {
 @export var node_follow_body_direction:Array[Node2D]
 ## 是否为我是僵尸模式
 var is_zombie_mode:=false
+## 角色属性集合（攻击力、生命值、增幅能力强度、防具强度、生产效率）。[br]
+## 内部由基础值字典加 Modifier 修饰符层组成，供 buff/装备系统叠加增益。
+var attributes: CharacterAttributes = CharacterAttributes.new()
 
 @export_group("角色速度")
 ## 初始速度倍率的随机范围；x 为下限、y 为上限，1 表示正常速度。
@@ -86,6 +89,8 @@ signal signal_update_speed(speed_factor_product:float)
 
 ## 角色死亡信号
 signal signal_character_death()
+## 属性最终值变化信号；基础值或修饰符变化时发出，供界面与 buff 逻辑监听。
+signal signal_attribute_changed(attribute: CharacterAttributes.E_Attribute, old_value: float, new_value: float)
 ## 角色被魅惑信号
 signal signal_character_be_hypno()
 ## 角色方向更新信号，被魅惑时发出，血条、睡觉显示方向修改
@@ -124,6 +129,10 @@ enum E_CharacterInitType{
 
 #endregion
 func _ready() -> void:
+	# 生命值基础值取自血量组件；其余属性使用属性类的默认基线。
+	attributes.set_base(CharacterAttributes.E_Attribute.Hp, float(hp_component.max_hp))
+	# 把属性类的变化转发到角色级信号，buff / 界面只需监听角色。
+	attributes.attribute_changed.connect(_on_attribute_changed)
 	match character_init_type:
 		E_CharacterInitType.IsNorm:
 			ready_norm()
@@ -340,4 +349,46 @@ func cancel_ice():
 		all_timer[E_TimerType.IceDecelerate].stop()
 		_on_ice_decelerate_timer_timeout()
 
+#endregion
+
+#region 属性系统
+## 返回 [param attribute] 的最终值（基础值经修饰符计算后的结果）。
+func get_attribute(attribute: CharacterAttributes.E_Attribute) -> float:
+	return attributes.get_value(attribute)
+
+
+## 添加一条属性修饰符，返回是否新增（false 表示同 id 修饰符被替换）。[br]
+## [param operation] 支持加法、基础乘区、总乘区；[param source] 用于按来源批量移除。
+func add_attribute_modifier(
+	attribute: CharacterAttributes.E_Attribute,
+	id: String,
+	value: float,
+	operation: CharacterAttributes.E_Operation = CharacterAttributes.E_Operation.Addition,
+	source: String = ""
+) -> bool:
+	return attributes.add_modifier(attribute, id, value, operation, source)
+
+
+## 移除 [param attribute] 上 id 为 [param id] 的修饰符。
+func remove_attribute_modifier(attribute: CharacterAttributes.E_Attribute, id: String) -> bool:
+	return attributes.remove_modifier(attribute, id)
+
+
+## 按来源移除所有属性修饰符（例如某个 buff 结束时），返回移除数量。
+func remove_attribute_modifiers_from_source(source: String) -> int:
+	return attributes.remove_modifiers_by_source(source)
+
+
+## 用血量组件的当前最大生命值刷新生命基础值；关卡加成或复活后调用。[br]
+## 已有生命修饰符时跳过，避免把加成后的上限当成基础值重复叠加。
+func sync_hp_base_from_component() -> void:
+	if not attributes.get_modifiers(CharacterAttributes.E_Attribute.Hp).is_empty():
+		push_warning("已有生命修饰符，跳过生命基础值同步，避免加成重复计算。")
+		return
+	attributes.set_base(CharacterAttributes.E_Attribute.Hp, float(hp_component.max_hp))
+
+
+## 属性最终值变化时转发到角色级信号。
+func _on_attribute_changed(attribute: CharacterAttributes.E_Attribute, old_value: float, new_value: float) -> void:
+	signal_attribute_changed.emit(attribute, old_value, new_value)
 #endregion

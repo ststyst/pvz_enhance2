@@ -85,8 +85,26 @@ func _shoot_bullet():
 		var bullet_paras = get_bullet_paras(markers_2d_bullet[i].global_position, detect_component.ray_area_direction[i])
 		#print(bullet_paras)
 		bullet.init_bullet(bullet_paras)
+		# 植物攻击力属性覆盖普通子弹伤害。
+		_apply_plant_attack(bullet)
 		bullets.add_child(bullet)
 		play_throw_sfx()
+
+
+## 用植物攻击力属性覆盖普通子弹的伤害。[br]
+## 首次发射以子弹自带伤害作为攻击力基础值，之后按属性最终值（含 buff）写入。[br]
+## 非植物或特殊子弹（保龄球等）保持自身配置不变。
+func _apply_plant_attack(bullet: Bullet000Base) -> void:
+	# 只有植物发射的普通子弹才参与属性换算。
+	var plant_owner := owner as Plant000Base
+	if plant_owner == null or not bullet is Bullet000NormBase:
+		return
+	var norm_bullet := bullet as Bullet000NormBase
+	# 攻击力基础值只初始化一次，避免不同子弹的默认伤害互相覆盖。
+	if plant_owner.attributes.get_base(CharacterAttributes.E_Attribute.Attack) <= 0.0:
+		plant_owner.attributes.set_base(CharacterAttributes.E_Attribute.Attack, float(norm_bullet.attack_value))
+	# 最终攻击力即子弹伤害；负值保护为 0。
+	norm_bullet.attack_value = maxi(0, int(round(plant_owner.attributes.get_value(CharacterAttributes.E_Attribute.Attack))))
 
 
 func get_bullet_paras(marker_2d_bullet_glo_pos:Vector2, ray_direction:Vector2) -> Dictionary[Bullet000NormBase.E_InitParasAttr,Variant]:

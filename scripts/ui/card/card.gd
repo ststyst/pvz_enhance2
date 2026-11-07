@@ -8,6 +8,10 @@ class_name Card
 @onready var short_cut: Label = $ShortCut
 ## 接收卡牌点击的按钮。
 @onready var button: Button = $Button
+## 卡牌右上角的星级图标；素材由卡牌场景提供，代码只按星级切换帧。
+@onready var star_icon: Sprite2D = get_node_or_null("StarIcon") as Sprite2D
+## 星级图标的帧数；素材按横向 16 帧排布，帧号从 0 开始对应 1~16 星。
+const STAR_FRAME_COUNT: int = 16
 
 ## 显示用途独立于内容类型，避免图鉴被当前战斗场景接管点击。
 enum CardContext {
@@ -48,6 +52,8 @@ signal signal_card_use_end(card: Card)
 func _ready() -> void:
 	super()
 	_cool_mask.value = 0
+	# 星级图标只依赖引用，先刷新，非法引用时同样会隐藏图标。
+	refresh_star_icon()
 	if card_reference == null or not card_reference.is_valid():
 		is_can_click = false
 		return
@@ -62,6 +68,22 @@ func _ready() -> void:
 		for child: Node in character_static.get_children():
 			if child is Node2D:
 				GlobalUtils.node_use_parent_material(child as Node2D)
+
+
+## 按当前引用的星级刷新右上角图标：仅植物且星级在 1~16 时显示对应帧，其余一律隐藏。[br]
+## 越界星级（0、负数、17 以上）、空引用以及僵尸/僵王卡都不会显示图标。
+func refresh_star_icon() -> void:
+	if star_icon == null:
+		return
+	# 可显示性统一交给引用判断，避免这里和卡片身份校验出现两套规则。
+	var displayable: bool = card_reference != null and card_reference.has_displayable_star()
+	star_icon.visible = displayable
+	if not displayable:
+		return
+	# 素材帧数固定，帧号零起点；星级已经过 1~16 校验。
+	star_icon.hframes = STAR_FRAME_COUNT
+	star_icon.vframes = 1
+	star_icon.frame = card_reference.star_level - 1
 
 
 ## 修改实例冷却时长；[param new_cool_time] 单位为秒，0 用于无冷却模式。

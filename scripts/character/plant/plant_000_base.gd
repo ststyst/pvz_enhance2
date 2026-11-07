@@ -9,6 +9,14 @@ class_name Plant000Base
 #region 植物类基础属性
 
 @export var plant_type:CharacterRegistry.PlantType
+## 本植物的星级；来自种植时使用的局内卡片，特殊模式（无卡槽）为 0。
+var star_level: int = 0
+## 星级动画节点；挂在 body 下，4~17 星循环播放，其它星级隐藏。
+var star_level_animation: StarLevelAnimation
+## 星级永久加成的修饰符 id；固定值保证反复施加时替换而不是叠加。
+const STAR_BUFF_ID: String = "star_buff"
+## 星级永久加成的来源标签，便于按来源整体清除。
+const STAR_BUFF_SOURCE: String = "star_buff"
 ## 植物初始化受击状态（从1[is_norm] 开始）僵尸攻击检测时判断是否可以攻击
 @export var init_be_attack_status :E_BeAttackStatusPlant = E_BeAttackStatusPlant.IsNorm
 ## 是否白天睡觉
@@ -75,6 +83,7 @@ enum E_PInitAttr{
 	IsImitaterMaterial,	## 是否为模仿者材质
 	GardenDate,			## 花园数据
 	IsZombieMode,			## 我是僵尸模式
+	StarLevel,			## 植物星级（来自局内卡片；特殊模式缺省为 0）
 }
 ## 植物初始化相关, 创建植物时 加入场景树之前赋值
 func init_plant(plant_init_para:Dictionary):
@@ -82,6 +91,8 @@ func init_plant(plant_init_para:Dictionary):
 	self.character_init_type = plant_init_para[E_PInitAttr.CharacterInitType]
 	self.is_imitater_material = plant_init_para.get(E_PInitAttr.IsImitaterMaterial, false)
 	self.is_zombie_mode = plant_init_para.get(E_PInitAttr.IsZombieMode, false)
+	# 星级来自种植时使用的卡片；没有卡槽的特殊模式缺省为 0。
+	self.star_level = int(plant_init_para.get(E_PInitAttr.StarLevel, 0))
 	match character_init_type:
 		E_CharacterInitType.IsNorm:
 			self.plant_cell = plant_init_para[E_PInitAttr.PlantCell]
@@ -129,6 +140,77 @@ func ready_norm():
 		sleep_component.judge_is_sleeping()
 
 	GlobalUtils.update_plant_cell_slope_y_array(plant_cell, node2d_detect_in_slope)
+	# 星级动画依赖 body，放到 ready 阶段挂载。
+	_init_star_level_animation()
+	# 按星级施加永久属性加成；未配置或星级越界时不做任何改动。
+	apply_star_buff()
+	# 把属性最终值落到实际战斗组件：生命上限与阳光生产周期。
+	apply_attribute_effects()
+
+
+## 在 body 下创建星级动画节点；星级由局内卡片决定，特殊模式为 0 时只隐藏。[br]
+## 节点始终创建，便于之后改星级时复用同一实例。
+func _init_star_level_animation() -> void:
+	star_level_animation = StarLevelAnimation.new()
+	star_level_animation.name = "StarLevelAnimation"
+	body.add_child(star_level_animation)
+	star_level_animation.setup(star_level)
+
+
+## 按当前星级施加永久属性加成；[param config] 为空时读取全局表 [StarBuffData]。[br]
+## 加成用固定 id 施加，重复调用只替换不叠加；未配置、星级越界或该星级数值为 0 时跳过。[br]
+## 数值为 0 时会移除已有的星级修饰符，便于运行期改星级后不残留旧加成。
+func apply_star_buff(config: Dictionary = {}) -> void:
+	# 本次使用的加成配置；参数为空表示走全局常量表。
+	var buff_config := config if not config.is_empty() else StarBuffData.get_buff(plant_type)
+	if not StarBuffData.is_valid_config(buff_config):
+		return
+	# 当前星级对应的加成值；越界返回 null。
+	var value: Variant = StarBuffData.get_buff_value(buff_config, star_level)
+	if value == null:
+		return
+	# 加成目标属性与乘区类型，来自配置表。
+	var attribute: int = int(buff_config["attribute"])
+	var operation: int = int(buff_config["operation"])
+	if not CharacterAttributes.E_Attribute.values().has(attribute):
+		push_error("Plant000Base：星级加成属性非法：%s" % attribute)
+		return
+	if operation < 0 or operation > CharacterAttributes.E_Operation.MultiplyTotal:
+		push_error("Plant000Base：星级加成乘区类型非法：%s" % operation)
+		return
+	# 数值为 0 视为该星级没有加成，清掉可能存在的旧星级修饰符。
+	if float(value) == 0.0:
+		remove_attribute_modifier(attribute, STAR_BUFF_ID)
+		return
+	add_attribute_modifier(attribute, STAR_BUFF_ID, float(value), operation, STAR_BUFF_SOURCE)
+
+
+## 把属性最终值落到实际战斗组件：生命上限与阳光生产周期。[br]
+## 攻击力在发射子弹时读取，见 AttackComponentBulletBase._apply_plant_attack。
+func apply_attribute_effects() -> void:
+	apply_hp_attribute()
+	apply_production_rate_attribute()
+
+
+## 用生命值属性刷新血量上限；上限变化时把当前血量回满。
+func apply_hp_attribute() -> void:
+	# 新上限四舍五入并至少为 1，避免 0 血上限导致血条除零。
+	var new_max: int = maxi(1, int(round(attributes.get_value(CharacterAttributes.E_Attribute.Hp))))
+	if new_max == hp_component.max_hp:
+		return
+	hp_component.max_hp = new_max
+	# 上限变化后回满，避免当前血量与新上限不一致。
+	hp_component.curr_hp = new_max
+
+
+## 用生产效率属性刷新阳光生产间隔；1 为正常，2 为间隔减半。[br]
+## 没有阳光生产组件的植物直接跳过。
+func apply_production_rate_attribute() -> void:
+	var create_sun_component := get_node_or_null("CreateSunComponent") as CreateSunComponent
+	if create_sun_component == null:
+		return
+	create_sun_component.apply_production_rate(attributes.get_value(CharacterAttributes.E_Attribute.ProductionRate))
+
 
 ## 初始化展示角色
 func ready_show():
@@ -273,6 +355,7 @@ func gat_save_game_data_plant()->Dictionary:
 	save_game_data_plant["plant_type"] = plant_type
 	save_game_data_plant["curr_hp"] = hp_component.curr_hp
 	save_game_data_plant["is_imitater_material"] = is_imitater_material
+	save_game_data_plant["star_level"] = star_level
 	return save_game_data_plant
 
 ## 读档植物数据
@@ -282,5 +365,12 @@ func load_game_data_plant(save_game_data_plant:Dictionary):
 		is_sleeping = false
 		sleep_component.end_sleep()
 
-	hp_component.curr_hp = save_game_data_plant["curr_hp"]
+	# 星级随植物存档保留；先按新星级重建动画、加成与血量上限，再恢复存档当前血量。
+	star_level = int(save_game_data_plant.get("star_level", star_level))
+	if is_instance_valid(star_level_animation):
+		star_level_animation.setup(star_level)
+	apply_star_buff()
+	apply_attribute_effects()
+	# 恢复存档血量；上限变化后不允许超过新上限。
+	hp_component.curr_hp = mini(int(save_game_data_plant["curr_hp"]), hp_component.max_hp)
 	hp_component.signal_hp_loss.emit(hp_component.curr_hp, true)

@@ -9,7 +9,8 @@ var imitater_plant_type :CharacterRegistry.PlantType = CharacterRegistry.PlantTy
 ## 更新模仿者植物
 func update_imitater():
 	## plant_cell创造植物,该函数会先等待一帧,当前模仿者死亡后创建
-	plant_cell.imitater_create_plant(imitater_plant_type)
+	## 模仿出来的植物沿袭模仿者卡片自身的星级。
+	plant_cell.imitater_create_plant(imitater_plant_type, true, star_level)
 	imitater_effect.visible = true
 	imitater_effect.z_index += 1
 	imitater_effect.activate_it()

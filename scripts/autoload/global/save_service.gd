@@ -7,7 +7,7 @@ class_name SaveService
 ## 与 Global 根下的 GlobalGameState 同级，用 % 引用，避免依赖 get_parent() 类型
 @onready var global_game_state: GlobalGameState = %GlobalGameState
 
-const SaveGameVersion := "20251207"
+const SaveGameVersion := "20251208"
 const SaveGameFileName := "GlobalSaveGame.json"
 ## 主游戏关卡等存档子目录名（单点定义）。其它脚本请用 `SaveService.MAIN_GAME_SAVE_DIR_NAME` 或 `Global.save_service.MAIN_GAME_SAVE_DIR_NAME`，勿复制字符串。
 const MAIN_GAME_SAVE_DIR_NAME := "main_game_saves_data"
@@ -67,6 +67,7 @@ func save_now() -> void:
 		"selected_cards": _serialize_selected_cards(),
 		"backpacks": _serialize_backpacks(),
 		"curr_backpack_key": global_game_state.curr_backpack_key,
+		"next_card_uid": global_game_state.next_card_uid,
 		"curr_plant": global_game_state.curr_plant,
 		"curr_zombie": global_game_state.curr_zombie,
 	}
@@ -102,6 +103,9 @@ func load_global_game_data() -> void:
 	BackpackService.seed_default_backpack(state)
 	if not state.backpacks.has(state.curr_backpack_key):
 		state.curr_backpack_key = GlobalGameState.DEFAULT_BACKPACK_KEY if state.backpacks.has(GlobalGameState.DEFAULT_BACKPACK_KEY) else String(state.backpacks.keys()[0])
+	state.next_card_uid = max(1, int(data.get("next_card_uid", 1)))
+	# 旧存档的卡片没有唯一 id，统一补发后再允许按 id 删除。
+	_ensure_backpack_card_uids(state)
 
 	### 从存档读取当前植物和僵尸
 	#var loaded_curr_plant_raw: Array = data.get("curr_plant", state.curr_plant)
@@ -213,6 +217,31 @@ func _deserialize_backpacks(data: Variant) -> Dictionary:
 					cards.append(card_reference)
 		backpacks[backpack_key] = cards
 	return backpacks
+
+
+## 为背包内所有卡片补发缺失或重复的唯一 id，并推进 next_card_uid。[br]
+## 旧存档没有该字段，迁移后每张卡都能被按 id 精确删除；重复 id 以重新分配处理。
+func _ensure_backpack_card_uids(state: GlobalGameState) -> void:
+	# 已占用的 id 集合，用于发现重复与冲突。
+	var used_uids: Dictionary = {}
+	# 下一个可用 id 从存档计数器继续，至少为 1。
+	var next_uid: int = max(1, state.next_card_uid)
+	for backpack_key: String in state.backpacks.keys():
+		# 迁移后的卡片列表，保持背包原顺序。
+		var cards: Array[ResourceCardReference] = []
+		for card: Variant in state.backpacks[backpack_key]:
+			if not card is ResourceCardReference:
+				continue
+			# 缺失或重复的 id 重新分配，保证删除时不会误删另一张同种卡。
+			if card.card_uid <= 0 or used_uids.has(card.card_uid):
+				while used_uids.has(next_uid):
+					next_uid += 1
+				card.card_uid = next_uid
+				next_uid += 1
+			used_uids[card.card_uid] = true
+			cards.append(card)
+		state.backpacks[backpack_key] = cards
+	state.next_card_uid = next_uid
 
 
 func _save_json(data: Dictionary, path: String) -> bool:

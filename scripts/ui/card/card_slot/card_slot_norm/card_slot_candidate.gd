@@ -12,8 +12,8 @@ class_name CardSlotCandidate
 @onready var grid_container_zombie: GridContainer = $AllCardPage/GridContainerZombie
 ## 全部候选容器，按生成顺序保存；同一植物重复出现时会有多个容器。
 var candidate_containers: Array[CardCandidateContainer] = []
-## 按完整选择键分组的候选容器；同键数组内是同一张卡的重复实例。
-var candidates_by_key: Dictionary[Vector3i, Array] = {}
+## 按完整选择键分组的候选容器；同键数组内是同一张卡（含星级）的重复实例。
+var candidates_by_key: Dictionary[Vector4i, Array] = {}
 ## 本局选卡读取的背包键；空字符串表示使用 Global 当前背包。
 var backpack_key: String = ""
 ## 至少有一张已解锁卡的普通页面。
